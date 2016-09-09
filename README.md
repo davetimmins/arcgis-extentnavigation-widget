@@ -1,5 +1,5 @@
 # arcgis-extentnavigation-widget
-An ArcGIS JS V4 widget that travels through extents.
+:milky_way: An ArcGIS JS V4 widget that travels through extents.
 
 [![npm](https://img.shields.io/npm/v/arcgis-extentnavigation-widget.svg?maxAge=2592000)](https://www.npmjs.com/package/arcgis-extentnavigation-widget)
 
@@ -13,7 +13,8 @@ require([
   // create your map and view
 
   var extentNav = new ExtentNavigation({
-    view: view
+    view: view,
+    numberOfExtentsToStore: 10 // default is 20
   });
   view.ui.add(extentNav, "top-right");
 ```
