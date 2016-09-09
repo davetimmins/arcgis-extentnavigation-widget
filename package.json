@@ -1,6 +1,6 @@
 {
   "name": "arcgis-extentnavigation-widget",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "An ArcGIS JS V4 widget that travels through extents.",
   "files": ["src"],
   "main": "dojoConfig.js",

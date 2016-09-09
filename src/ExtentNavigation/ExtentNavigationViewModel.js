@@ -18,11 +18,11 @@ define([
         readOnly: !0
       },
       canGoToPrevious: {
-        dependsOn: ["view.ready", "view.extent", "view.viewpoint", "view.zoom", "view.interacting"],
+        dependsOn: ["view.ready", "view.viewpoint", "view.stationary"],
         readOnly: !0
       },
       canGoToNext: {
-        dependsOn: ["view.ready", "view.extent", "view.viewpoint", "view.zoom", "view.interacting"],
+        dependsOn: ["view.ready", "view.viewpoint", "view.stationary"],
         readOnly: !0
       },
       view: {},
@@ -34,32 +34,26 @@ define([
       this._handles = new HandleRegistry;
       this.goToPrevious = this.goToPrevious.bind(this);   
       this.goToNext = this.goToNext.bind(this);   
-      this._viewExtentChanged =  this._debounce(this._viewExtentChanged.bind(this), 250);
-      this._interactingChanged =  this._interactingChanged.bind(this);
+      this._stationaryChanged =  this._stationaryChanged.bind(this);
       this._addAndUpdateExtentState = this._addAndUpdateExtentState.bind(this);
     },
 
     initialize: function() {
 
-      this._handles.add(watchUtils.watch(this, "view", function(view) {
 
-        if (view) {
-          
-          this._handles.remove("view-watcher");
+      watchUtils.whenOnce(this, "view").then(function(view) { 
 
-          this._handles.add(watchUtils.init(this, "state", function(stateVal) {
-            
-            if (stateVal === state.ready) {
+        this._handles.add(watchUtils.init(this, "state", function(stateVal) {
 
-              this._handles.remove("view-ready-watcher");
+          this._handles.remove("view-ready-watcher");
 
-              this._addAndUpdateExtentState(this.view.extent);              
-              this._handles.add(watchUtils.watch(this.view, "interacting", this._interactingChanged), "interaction-watcher");
-              this._handles.add(watchUtils.watch(this.view, "extent", this._viewExtentChanged), "extent-watcher");
-            }            
-          }.bind(this)), "view-ready-watcher");
-        }                
-      }.bind(this)), "view-watcher");
+          if (stateVal === state.ready) {
+
+            this._addAndUpdateExtentState(this.view.viewpoint);             
+            this._handles.add(watchUtils.whenTrue(this.view, "stationary", this._stationaryChanged), "stationary-watcher");  
+          }
+        }.bind(this)), "view-ready-watcher");
+      }.bind(this));
     },
 
     destroy: function() {
@@ -87,53 +81,42 @@ define([
       this._set("numberOfExtentsToStore", numberOfExtentsToStore)
     },
 
-    _extentHistory: [],
+    _viewpointHistory: [],
 
-    _currentExtentIndex: 0,
+    _currentIndex: 0,
 
-    _interactingChanged: function (newValue, oldValue, propertyName, target) {
+    _stationaryChanged: function (obj, prop, callback) {
     
-      if (newValue) {
-        return;
-      }
-
-      this._addAndUpdateExtentState(this.view.extent);
-    },
-
-    _viewExtentChanged: function (newValue, oldValue, propertyName, target) {
-
-      if (this.view.interacting) {
-        return;
-      }
-
-      this._addAndUpdateExtentState(newValue);
-    },
+      this._addAndUpdateExtentState(this.view.viewpoint);
+    },  
 
     _addAndUpdateExtentState: function (newValue) {
       
       var newExtent = newValue.clone();
 
-      if (newExtent.equals(this._extentHistory[this._currentExtentIndex])) {
+      var current = this._viewpointHistory.length > 0 ? this._viewpointHistory[this._currentIndex] : null;
+
+      if (current && newExtent.targetGeometry.equals(current.targetGeometry) && newExtent.scale === current.scale) {
         return;
       }
 
       console.log(newValue.toJSON());
 
-      this._extentHistory.splice(this._currentExtentIndex === 0 && this._extentHistory.length === 0 ? 0 : this._currentExtentIndex + 1, 0, newExtent); 
+      this._viewpointHistory.splice(this._currentIndex === 0 && this._viewpointHistory.length === 0 ? 0 : this._currentIndex + 1, 0, newExtent); 
 
-      if (this._extentHistory.length > this.numberOfExtentsToStore + 1) {
+      if (this._viewpointHistory.length > this.numberOfExtentsToStore + 1) {
 
-        this._extentHistory.splice(0, 1);
+        this._viewpointHistory.splice(0, 1);
       }
 
-      this._currentExtentIndex = 0;
-      for (var i = this._extentHistory.length - 1; i > 0; i--) {
+      this._currentIndex = 0;
+      for (var i = this._viewpointHistory.length - 1; i > 0; i--) {
 
-        var test = this._extentHistory[i];
+        var test = this._viewpointHistory[i];
 
-        if (newExtent.equals(test)) {
+        if (newExtent.targetGeometry.equals(test.targetGeometry)) {
 
-          this._currentExtentIndex = i;
+          this._currentIndex = i;
           break;
         }
       }
@@ -142,55 +125,40 @@ define([
     canGoToPrevious: false,
     _canGoToPreviousGetter: function() {
       
-      return this._currentExtentIndex > 0;
+      return this._currentIndex > 0;
     },
 
     _canGoToNextGetter: function() {
       
-      return this._currentExtentIndex + 1 < this._extentHistory.length;
+      return (this._currentIndex + 1) < this._viewpointHistory.length;
     },    
     
     goToPrevious: function(e) {
 
+      e.preventDefault();
+
       if (this.state === state.disabled) {
         return;
       }
 
-      this.get("canGoToPrevious") && this._goToExtent(this._currentExtentIndex - 1);
+      this.get("canGoToPrevious") && this._goToExtent(this._currentIndex - 1);
     },
 
     goToNext: function(e) {
 
+      e.preventDefault();
+
       if (this.state === state.disabled) {
         return;
       }
 
-      this.get("canGoToNext") && this._goToExtent(this._currentExtentIndex + 1);
+      this.get("canGoToNext") && this._goToExtent(this._currentIndex + 1);
     },
 
     _goToExtent: function(extentIndex) {     
 
-      this._handles.remove("extent-watcher");
-
-      this._currentExtentIndex = extentIndex;
-      this.view.extent = this._extentHistory[this._currentExtentIndex];
-
-      this._handles.add(watchUtils.watch(this.view, "extent", this._viewExtentChanged), "extent-watcher");
-    },
-
-    _debounce: function(func, wait, immediate) {
-      var timeout;
-      return function() {
-        var context = this, args = arguments;
-        var later = function() {
-          timeout = null;
-          if (!immediate) func.apply(context, args);
-        };
-        var callNow = immediate && !timeout;
-        clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
-        if (callNow) func.apply(context, args);
-      };
-    }   
+      this._currentIndex = extentIndex;
+      this.view.goTo(this._viewpointHistory[this._currentIndex]);
+    }
   })
 });
