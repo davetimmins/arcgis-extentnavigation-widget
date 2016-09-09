@@ -40,7 +40,6 @@ define([
 
     initialize: function() {
 
-
       watchUtils.whenOnce(this, "view").then(function(view) { 
 
         this._handles.add(watchUtils.init(this, "state", function(stateVal) {
@@ -99,8 +98,6 @@ define([
       if (current && newExtent.targetGeometry.equals(current.targetGeometry) && newExtent.scale === current.scale) {
         return;
       }
-
-      console.log(newValue.toJSON());
 
       this._viewpointHistory.splice(this._currentIndex === 0 && this._viewpointHistory.length === 0 ? 0 : this._currentIndex + 1, 0, newExtent); 
 
